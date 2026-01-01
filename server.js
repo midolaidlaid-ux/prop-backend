@@ -1,4 +1,3 @@
-
 const express = require("express");
 const app = express();
 
@@ -7,8 +6,10 @@ app.get("/", (req, res) => {
   res.send("Backend يعمل ✅");
 });
 
-// تشغيل بوت تيليجرام
-require("./bot");
+// تشغيل بوت تيليجرام فقط إذا كان التوكن موجود
+if (process.env.BOT_TOKEN) {
+  require("./bot");
+}
 
 // تشغيل السيرفر
 const PORT = process.env.PORT || 3000;
