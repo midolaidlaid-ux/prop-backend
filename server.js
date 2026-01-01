@@ -1,15 +1,11 @@
-const express = require("express");
+import express from "express";
+
 const app = express();
 
-// صفحة اختبار
+// صفحة رئيسية للاختبار
 app.get("/", (req, res) => {
   res.send("Backend يعمل ✅");
 });
-
-// تشغيل بوت تيليجرام فقط إذا كان التوكن موجود
-if (process.env.BOT_TOKEN) {
-  require("./bot");
-}
 
 // تشغيل السيرفر
 const PORT = process.env.PORT || 3000;
