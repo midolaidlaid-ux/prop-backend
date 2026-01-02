@@ -7,15 +7,21 @@ app.use(express.json());
 const TOKEN = "8509851536:AAHTzXYmumV6DUmYffh_ptxam0LE5dhdcSE";
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 
+// ===== إعدادات التحدي =====
+const START_BALANCE = 5000;
+const TARGET_BALANCE = 6000;
+const MAX_LOSS_BALANCE = 4600;
+const DAILY_LIMIT = 200;
+const CHALLENGE_DAYS = 10;
+
 // ===== تخزين مؤقت =====
-const users = {}; 
-// users[chatId] = { balance, position }
+const users = {};
 
 app.get("/", (req, res) => {
-  res.send("Trading backend running ✅");
+  res.send("Prop Challenge backend running ✅");
 });
 
-// ===== سعر BTC الحقيقي =====
+// ===== سعر BTC =====
 async function getBTC() {
   const r = await fetch(
     "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
@@ -35,13 +41,24 @@ app.post("/webhook", async (req, res) => {
 
     if (!users[chatId]) {
       users[chatId] = {
-        balance: 5000,
-        position: null
+        balance: START_BALANCE,
+        startDate: Date.now(),
+        dayStartBalance: START_BALANCE,
+        position: null,
+        status: "active"
       };
     }
 
     if (text === "/trade") {
       await sendTradeMenu(chatId);
+    }
+
+    if (text === "/status") {
+      const user = users[chatId];
+      await send(
+        chatId,
+        `📊 Status: ${user.status}\n💰 Balance: ${user.balance.toFixed(2)}`
+      );
     }
   }
 
@@ -49,33 +66,27 @@ app.post("/webhook", async (req, res) => {
   if (u.callback_query) {
     const chatId = u.callback_query.message.chat.id;
     const action = u.callback_query.data;
-
-    if (!users[chatId]) return res.sendStatus(200);
-
     const user = users[chatId];
+
+    if (!user || user.status !== "active") return res.sendStatus(200);
+
     const price = await getBTC();
 
     // ===== BUY =====
     if (action === "buy" && !user.position) {
-      user.position = {
-        type: "BUY",
-        entry: price
-      };
+      user.position = { type: "BUY", entry: price };
       await send(chatId, `🟢 BUY @ ${price}`);
     }
 
     // ===== SELL =====
     if (action === "sell" && !user.position) {
-      user.position = {
-        type: "SELL",
-        entry: price
-      };
+      user.position = { type: "SELL", entry: price };
       await send(chatId, `🔴 SELL @ ${price}`);
     }
 
     // ===== CLOSE =====
     if (action === "close" && user.position) {
-      let pnl =
+      const pnl =
         user.position.type === "BUY"
           ? price - user.position.entry
           : user.position.entry - price;
@@ -83,11 +94,40 @@ app.post("/webhook", async (req, res) => {
       user.balance += pnl;
       user.position = null;
 
+      // ===== تحقق يوم جديد =====
+      const now = new Date();
+      const start = new Date(user.startDate);
+      if (now.getDate() !== start.getDate()) {
+        user.dayStartBalance = user.balance;
+        user.startDate = Date.now();
+      }
+
+      // ===== القوانين =====
+      const dailyPnL = user.balance - user.dayStartBalance;
+
+      if (Math.abs(dailyPnL) > DAILY_LIMIT) {
+        user.status = "failed";
+        await send(chatId, "⛔ تجاوزت الحد اليومي 200$ – التحدي مرفوض");
+        return res.sendStatus(200);
+      }
+
+      if (user.balance <= MAX_LOSS_BALANCE) {
+        user.status = "failed";
+        await send(chatId, "❌ وصلت إلى الخسارة القصوى – التحدي مرفوض");
+        return res.sendStatus(200);
+      }
+
+      if (user.balance >= TARGET_BALANCE) {
+        user.status = "passed";
+        await send(chatId, "🎉 تهانينا! نجحت في التحدي");
+        return res.sendStatus(200);
+      }
+
       await send(
         chatId,
-        `❌ Close @ ${price}\n💰 PnL: ${pnl.toFixed(2)}\n📊 Balance: ${user.balance.toFixed(
+        `❌ Close @ ${price}\n💰 PnL: ${pnl.toFixed(
           2
-        )}`
+        )}\n📊 Balance: ${user.balance.toFixed(2)}`
       );
     }
   }
