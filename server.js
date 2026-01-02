@@ -1,8 +1,12 @@
 import express from "express";
 import fetch from "node-fetch";
+import cors from "cors"; // ✅ استدعاء مكتبة CORS
 
 const app = express();
 app.use(express.json());
+
+// ✅ تفعيل CORS لجميع المواقع
+app.use(cors());
 
 // 🔴 ضع توكن البوت هنا
 const TOKEN = "PUT_YOUR_BOT_TOKEN_HERE";
@@ -47,7 +51,6 @@ app.get("/price/crypto/btc", async (req, res) => {
     const response = await fetch(
       "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
     );
-
     const data = await response.json();
 
     res.json({
@@ -55,9 +58,7 @@ app.get("/price/crypto/btc", async (req, res) => {
       price: Number(data.price)
     });
   } catch (error) {
-    res.status(500).json({
-      error: "فشل في جلب سعر البيتكوين"
-    });
+    res.status(500).json({ error: "فشل في جلب سعر البيتكوين" });
   }
 });
 
