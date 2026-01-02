@@ -1,63 +1,35 @@
 import express from "express";
+import fetch from "node-fetch";
 
 const app = express();
 app.use(express.json());
 
-// توكن البوت من Render Environment Variables
-const BOT_TOKEN = process.env.BOT_TOKEN;
+const TOKEN = process.env.BOT_TOKEN;
+const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 
-// صفحة اختبار
 app.get("/", (req, res) => {
-  res.send("Backend يعمل ✅");
+  res.send("Bot backend is running ✅");
 });
 
-// استقبال رسائل Telegram
-app.post("/telegram", async (req, res) => {
-  const message = req.body.message;
-  if (!message) return res.sendStatus(200);
+app.post("/webhook", async (req, res) => {
+  const update = req.body;
 
-  const chatId = message.chat.id;
-  const text = message.text;
+  if (update.message) {
+    const chatId = update.message.chat.id;
+    const text = update.message.text || "";
 
-  // عند /start نرسل زر دخول المنصة
-  if (text === "/start") {
-    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    await fetch(`${TELEGRAM_API}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: chatId,
-        text: "👋 مرحبًا بك في Prop Challenge\n\nاضغط الزر أدناه للدخول إلى المنصة 👇",
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: "🚀 دخول المنصة",
-                url: "https://midolaidlaid-ux.github.io/mini-prop-app/dashboard.html"
-              }
-            ]
-          ]
-        }
+        text: `وصلت رسالتك: ${text}`
       })
     });
-
-    return res.sendStatus(200);
   }
-
-  // رد افتراضي لأي رسالة أخرى
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: "اكتب /start لبدء الدخول إلى المنصة 🚀"
-    })
-  });
 
   res.sendStatus(200);
 });
 
-// تشغيل السيرفر
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
-});
+app.listen(PORT, () => console.log("Server started on port", PORT));
