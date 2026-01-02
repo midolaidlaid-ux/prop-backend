@@ -1,6 +1,7 @@
 {
   "name": "prop-backend",
   "version": "1.0.0",
+  "description": "Prop Challenge Backend",
   "type": "module",
   "engines": {
     "node": ">=18"
@@ -12,3 +13,4 @@
     "express": "^4.19.2"
   }
 }
+🔁 بعد 
