@@ -3,12 +3,8 @@ import express from "express";
 const app = express();
 app.use(express.json());
 
+// توكن البوت من Render Environment Variables
 const BOT_TOKEN = process.env.BOT_TOKEN;
-
-// تأكيد أن التوكن موجود
-if (!BOT_TOKEN) {
-  console.error("❌ BOT_TOKEN غير موجود");
-}
 
 // صفحة اختبار
 app.get("/", (req, res) => {
@@ -17,40 +13,51 @@ app.get("/", (req, res) => {
 
 // استقبال رسائل Telegram
 app.post("/telegram", async (req, res) => {
-  console.log("📩 Update received:", JSON.stringify(req.body));
-
   const message = req.body.message;
   if (!message) return res.sendStatus(200);
 
   const chatId = message.chat.id;
   const text = message.text;
 
-  let reply = "أهلاً بك في منصة Prop Challenge 🚀";
-
+  // عند /start نرسل زر دخول المنصة
   if (text === "/start") {
-    reply =
-      "👋 مرحبًا بك في Prop Challenge\n\n" +
-      "اختر عرض التحدي:\n" +
-      "1️⃣ 10$ → حساب 1000$\n" +
-      "2️⃣ 20$ → حساب 3000$\n" +
-      "3️⃣ 30$ → حساب 5000$";
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: "👋 مرحبًا بك في Prop Challenge\n\nاضغط الزر أدناه للدخول إلى المنصة 👇",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "🚀 دخول المنصة",
+                url: "https://midolaidlaid-ux.github.io/mini-prop-app/dashboard.html"
+              }
+            ]
+          ]
+        }
+      })
+    });
+
+    return res.sendStatus(200);
   }
 
-  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-
-  await fetch(url, {
+  // رد افتراضي لأي رسالة أخرى
+  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: chatId,
-      text: reply
+      text: "اكتب /start لبدء الدخول إلى المنصة 🚀"
     })
   });
 
   res.sendStatus(200);
 });
 
+// تشغيل السيرفر
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log("✅ Server running on port", PORT);
+  console.log("Server running on port", PORT);
 });
