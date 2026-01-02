@@ -4,114 +4,125 @@ import fetch from "node-fetch";
 const app = express();
 app.use(express.json());
 
-// 🔴 توكن البوت (مؤقت)
 const TOKEN = "8509851536:AAHTzXYmumV6DUmYffh_ptxam0LE5dhdcSE";
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 
-// ===== الصفحة الرئيسية =====
+// ===== تخزين مؤقت =====
+const users = {}; 
+// users[chatId] = { balance, position }
+
 app.get("/", (req, res) => {
-  res.send("Backend is running ✅");
+  res.send("Trading backend running ✅");
 });
 
-// ===== جلب سعر كريبتو (Binance) =====
-// مثال: /price/BTCUSDT
-app.get("/price/:symbol", async (req, res) => {
-  const symbol = req.params.symbol.toUpperCase();
+// ===== سعر BTC الحقيقي =====
+async function getBTC() {
+  const r = await fetch(
+    "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
+  );
+  const d = await r.json();
+  return parseFloat(d.price);
+}
 
-  try {
-    const response = await fetch(
-      `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`
-    );
-    const data = await response.json();
-
-    res.json({
-      symbol: data.symbol,
-      price: parseFloat(data.price)
-    });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch price" });
-  }
-});
-
-// ===== Webhook تيليجرام =====
+// ===== Webhook =====
 app.post("/webhook", async (req, res) => {
-  const update = req.body;
+  const u = req.body;
 
-  // ===== رسائل =====
-  if (update.message) {
-    const chatId = update.message.chat.id;
-    const text = update.message.text;
+  // ===== رسالة =====
+  if (u.message) {
+    const chatId = u.message.chat.id;
+    const text = u.message.text;
 
-    // /start
-    if (text === "/start") {
-      await sendStartMenu(chatId);
+    if (!users[chatId]) {
+      users[chatId] = {
+        balance: 5000,
+        position: null
+      };
     }
 
-    // سعر بيتكوين
-    if (text === "/btc") {
-      const price = await getCryptoPrice("BTCUSDT");
-      await sendMessage(chatId, `💰 سعر BTC الآن: ${price} $`);
+    if (text === "/trade") {
+      await sendTradeMenu(chatId);
     }
   }
 
   // ===== أزرار =====
-  if (update.callback_query) {
-    const chatId = update.callback_query.message.chat.id;
-    const data = update.callback_query.data;
+  if (u.callback_query) {
+    const chatId = u.callback_query.message.chat.id;
+    const action = u.callback_query.data;
 
-    let reply = "";
+    if (!users[chatId]) return res.sendStatus(200);
 
-    if (data === "plan_1000") reply = "✅ اخترت اختبار حساب 1000$ مقابل 10$";
-    if (data === "plan_3000") reply = "✅ اخترت اختبار حساب 3000$ مقابل 20$";
-    if (data === "plan_5000") reply = "✅ اخترت اختبار حساب 5000$ مقابل 30$";
+    const user = users[chatId];
+    const price = await getBTC();
 
-    await sendMessage(chatId, reply);
+    // ===== BUY =====
+    if (action === "buy" && !user.position) {
+      user.position = {
+        type: "BUY",
+        entry: price
+      };
+      await send(chatId, `🟢 BUY @ ${price}`);
+    }
+
+    // ===== SELL =====
+    if (action === "sell" && !user.position) {
+      user.position = {
+        type: "SELL",
+        entry: price
+      };
+      await send(chatId, `🔴 SELL @ ${price}`);
+    }
+
+    // ===== CLOSE =====
+    if (action === "close" && user.position) {
+      let pnl =
+        user.position.type === "BUY"
+          ? price - user.position.entry
+          : user.position.entry - price;
+
+      user.balance += pnl;
+      user.position = null;
+
+      await send(
+        chatId,
+        `❌ Close @ ${price}\n💰 PnL: ${pnl.toFixed(2)}\n📊 Balance: ${user.balance.toFixed(
+          2
+        )}`
+      );
+    }
   }
 
   res.sendStatus(200);
 });
 
-// ===== دوال =====
-
-async function getCryptoPrice(symbol) {
-  const res = await fetch(
-    `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`
-  );
-  const data = await res.json();
-  return parseFloat(data.price);
-}
-
-async function sendStartMenu(chatId) {
+// ===== واجهة التداول =====
+async function sendTradeMenu(chatId) {
   await fetch(`${TELEGRAM_API}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: chatId,
-      text: "👋 مرحبًا بك في Prop Challenge\n\nاختر نوع التحدي:",
+      text: "📈 Trading Panel (BTC)",
       reply_markup: {
         inline_keyboard: [
-          [{ text: "💰 10$ → حساب 1000$", callback_data: "plan_1000" }],
-          [{ text: "💰 20$ → حساب 3000$", callback_data: "plan_3000" }],
-          [{ text: "💰 30$ → حساب 5000$", callback_data: "plan_5000" }]
+          [
+            { text: "🟢 BUY", callback_data: "buy" },
+            { text: "🔴 SELL", callback_data: "sell" }
+          ],
+          [{ text: "❌ CLOSE", callback_data: "close" }]
         ]
       }
     })
   });
 }
 
-async function sendMessage(chatId, text) {
+async function send(chatId, text) {
   await fetch(`${TELEGRAM_API}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text
-    })
+    body: JSON.stringify({ chat_id: chatId, text })
   });
 }
 
-// ===== تشغيل السيرفر =====
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("Server started on port", PORT);
-});
+app.listen(PORT, () => console.log("Server started"));
