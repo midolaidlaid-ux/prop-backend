@@ -8,7 +8,9 @@ app.use(express.json());
 const TOKEN = "PUT_YOUR_BOT_TOKEN_HERE";
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 
-// Webhook من Telegram
+/* =========================
+   TELEGRAM WEBHOOK
+========================= */
 app.post("/webhook", async (req, res) => {
   const message = req.body.message;
   if (!message) return res.sendStatus(200);
@@ -37,7 +39,28 @@ app.post("/webhook", async (req, res) => {
   res.sendStatus(200);
 });
 
-// صفحة اختبار
+/* =========================
+   CRYPTO PRICE (BTC)
+========================= */
+app.get("/price/crypto/btc", async (req, res) => {
+  try {
+    const response = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+    );
+    const data = await response.json();
+
+    res.json({
+      symbol: "BTCUSD",
+      price: data.bitcoin.usd
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch BTC price" });
+  }
+});
+
+/* =========================
+   HOME
+========================= */
 app.get("/", (req, res) => {
   res.send("Backend يعمل ✅");
 });
