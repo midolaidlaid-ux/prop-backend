@@ -40,21 +40,24 @@ app.post("/webhook", async (req, res) => {
 });
 
 /* =========================
-   CRYPTO PRICE (BTC)
+   BTC PRICE (BINANCE)
 ========================= */
 app.get("/price/crypto/btc", async (req, res) => {
   try {
     const response = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+      "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
     );
+
     const data = await response.json();
 
     res.json({
-      symbol: "BTCUSD",
-      price: data.bitcoin.usd
+      symbol: "BTCUSDT",
+      price: Number(data.price)
     });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch BTC price" });
+  } catch (error) {
+    res.status(500).json({
+      error: "فشل في جلب سعر البيتكوين"
+    });
   }
 });
 
